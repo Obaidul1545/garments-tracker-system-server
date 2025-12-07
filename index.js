@@ -22,6 +22,23 @@ async function run() {
   try {
     await client.connect();
 
+    const db = client.db('garments_tracker_db');
+    const usersCollection = db.collection('users');
+
+    // users releted apis
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      user.accountStatus = 'pending';
+      user.createdAt = new Date();
+      const email = user.email;
+      const userExists = await usersCollection.findOne({ email });
+      if (userExists) {
+        return res.send({ message: 'Already user Exists' });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
