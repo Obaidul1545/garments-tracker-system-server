@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
@@ -51,6 +51,7 @@ async function run() {
 
     const db = client.db('garments_tracker_db');
     const usersCollection = db.collection('users');
+    const productsCollection = db.collection('products');
 
     // users releted apis
     app.get('/users', async (req, res) => {
@@ -73,6 +74,36 @@ async function run() {
       }
       const result = await usersCollection.insertOne(user);
       res.send(result);
+    });
+
+    // products releted apis
+    app.get('/all-products', async (req, res) => {
+      try {
+        const { search } = req.query;
+        const query = {};
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { category: { $regex: search, $options: 'i' } },
+          ];
+        }
+        const result = await productsCollection.find(query).toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.get('/product/:id', async (req, res) => {
+      try {
+        const productId = req.params.id;
+        const query = { _id: new ObjectId(productId) };
+        const result = await productsCollection.findOne(query);
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
     });
 
     // Send a ping to confirm a successful connection
