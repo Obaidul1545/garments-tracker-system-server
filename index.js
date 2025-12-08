@@ -106,6 +106,21 @@ async function run() {
       }
     });
 
+    app.get('/latest-products', async (req, res) => {
+      try {
+        const query = { showOnHome: true };
+        const result = await productsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
