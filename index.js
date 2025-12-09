@@ -17,6 +17,12 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+function generateTrackingId() {
+  const timePart = Date.now().toString().slice(-4);
+  const random = Math.floor(100000 + Math.random() * 900000).toString();
+  return timePart + random;
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -52,6 +58,20 @@ async function run() {
     const db = client.db('garments_tracker_db');
     const usersCollection = db.collection('users');
     const productsCollection = db.collection('products');
+    const ordersCollection = db.collection('orders');
+    const trackingsCollection = db.collection('trackings');
+
+    // middle ware
+    const logTracking = async (trackingId, status) => {
+      const log = {
+        trackingId,
+        status,
+        details: status.split('_').join(' '),
+        createdAt: new Date(),
+      };
+      const result = await trackingsCollection.insertOne(log);
+      return result;
+    };
 
     // users releted apis
     app.get('/users', async (req, res) => {
@@ -115,6 +135,22 @@ async function run() {
           .limit(6)
           .toArray();
         res.status(200).send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    // orders releted apis
+    app.post('/orders', async (req, res) => {
+      try {
+        const orderData = req.body;
+        const trackingId = generateTrackingId();
+        orderData.createdAt = new Date();
+        orderData.trackingId = trackingId;
+        logTracking(trackingId, 'Order_Created');
+        const result = await ordersCollection.insertOne(orderData);
+        res.status(201).send(result);
       } catch (error) {
         console.error(error);
         res.status(500).send({ message: 'Server error' });
