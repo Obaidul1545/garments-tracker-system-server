@@ -74,15 +74,6 @@ async function run() {
     };
 
     // users releted apis
-    app.get('/users', async (req, res) => {
-      const email = req.query.email;
-      if (!email) {
-        return res.status(400).send({ error: 'Email missing' });
-      }
-      const result = await usersCollection.findOne({ email });
-      res.send(result);
-    });
-
     app.post('/users', async (req, res) => {
       const user = req.body;
       user.accountStatus = 'pending';
@@ -96,11 +87,59 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/users', async (req, res) => {
+      const email = req.query.email;
+      if (!email) {
+        return res.status(400).send({ error: 'Email missing' });
+      }
+      const result = await usersCollection.findOne({ email });
+      res.send(result);
+    });
+
+    app.get('/all-users', async (req, res) => {
+      try {
+        const { search, role } = req.query;
+        const query = {};
+        if (search) {
+          query.$or = [
+            { displayName: { $regex: search, $options: 'i' } },
+            { role: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+          ];
+        }
+        if (role && role !== 'all') {
+          query.role = role;
+        }
+        const result = await usersCollection.find(query).toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     app.get('/users/:email/role', async (req, res) => {
       const email = req.params.email;
       const query = { email };
       const user = await usersCollection.findOne(query);
       res.send({ role: user?.role || 'user' });
+    });
+
+    app.patch('/update-user', async (req, res) => {
+      try {
+        const { email, role, accountStatus } = req.body;
+
+        const updateDoc = {};
+        if (role) updateDoc.role = role;
+        if (accountStatus) updateDoc.accountStatus = accountStatus;
+
+        const result = await usersCollection.updateOne(
+          { email },
+          { $set: updateDoc }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
     });
 
     // products releted apis
