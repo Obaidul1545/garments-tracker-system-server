@@ -73,6 +73,22 @@ async function run() {
       return result;
     };
 
+    const generateOrderId = async () => {
+      const lastOrder = await ordersCollection
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray();
+      if (lastOrder.length === 0) {
+        return 'ORD001';
+      }
+      const lastId = lastOrder[0].orderId;
+      const lastNumber = parseInt(lastId.replace('ORD', ''));
+      const newNumber = lastNumber + 1;
+      const orderId = 'ORD' + newNumber.toString().padStart(3, '0');
+      return orderId;
+    };
+
     // users releted apis
     app.post('/users', async (req, res) => {
       const user = req.body;
@@ -96,7 +112,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/all-users', async (req, res) => {
+    app.get('/manage-users', async (req, res) => {
       try {
         const { search, role } = req.query;
         const query = {};
@@ -124,7 +140,7 @@ async function run() {
       res.send({ role: user?.role || 'user' });
     });
 
-    app.patch('/update-user', async (req, res) => {
+    app.patch('/update-user', verifyFBToken, async (req, res) => {
       try {
         const { email, role, accountStatus } = req.body;
 
@@ -154,7 +170,10 @@ async function run() {
             { category: { $regex: search, $options: 'i' } },
           ];
         }
-        const result = await productsCollection.find(query).toArray();
+        const result = await productsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
         res.status(200).send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
@@ -188,15 +207,44 @@ async function run() {
     });
 
     // orders releted apis
-    app.post('/orders', async (req, res) => {
+    app.post('/orders', verifyFBToken, async (req, res) => {
       try {
         const orderData = req.body;
         const trackingId = generateTrackingId();
+        const orderId = generateOrderId();
         orderData.createdAt = new Date();
+        orderData.orderId = orderId;
         orderData.trackingId = trackingId;
+        orderData.status = 'pending';
         logTracking(trackingId, 'Order_Created');
         const result = await ordersCollection.insertOne(orderData);
         res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.get('/all-orders', async (req, res) => {
+      try {
+        const { search, sortByStatus } = req.query;
+        const query = {};
+        if (search) {
+          query.$or = [
+            { orderId: { $regex: search, $options: 'i' } },
+            { firstName: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+            { productTitle: { $regex: search, $options: 'i' } },
+            { status: { $regex: search, $options: 'i' } },
+          ];
+        }
+        if (sortByStatus && sortByStatus !== 'all') {
+          query.sortByStatus = sortByStatus;
+        }
+        const result = await ordersCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.status(200).send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
       }
