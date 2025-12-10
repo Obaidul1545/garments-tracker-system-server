@@ -96,6 +96,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/users/:email/role', async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      res.send({ role: user?.role || 'user' });
+    });
+
     // products releted apis
     app.get('/all-products', async (req, res) => {
       try {
@@ -152,7 +159,6 @@ async function run() {
         const result = await ordersCollection.insertOne(orderData);
         res.status(201).send(result);
       } catch (error) {
-        console.error(error);
         res.status(500).send({ message: 'Server error' });
       }
     });
