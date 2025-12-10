@@ -250,6 +250,37 @@ async function run() {
       }
     });
 
+    app.get('/orders-by-email', async (req, res) => {
+      try {
+        const { email, search, sortByStatus } = req.query;
+        const query = {};
+        if (email) {
+          query.email = email;
+        }
+        if (search) {
+          query.$or = [
+            { orderId: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+            { productTitle: { $regex: search, $options: 'i' } },
+            { status: { $regex: search, $options: 'i' } },
+          ];
+        }
+
+        if (sortByStatus && sortByStatus !== 'all') {
+          query.status = sortByStatus;
+        }
+
+        const result = await ordersCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
