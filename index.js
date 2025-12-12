@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.SRTIPE_SECRET);
+console.log(process.env.SRTIPE_SECRET);
 const app = express();
 const port = process.env.PORT || 3000;
 const admin = require('firebase-admin');
@@ -60,6 +62,7 @@ async function run() {
     const productsCollection = db.collection('products');
     const ordersCollection = db.collection('orders');
     const trackingsCollection = db.collection('trackings');
+    const paymentCollection = db.collection('payments');
 
     // middle ware
     const logTracking = async (trackingId, status) => {
@@ -211,14 +214,14 @@ async function run() {
       try {
         const orderData = req.body;
         const trackingId = generateTrackingId();
-        const orderId = generateOrderId();
+        const orderId = await generateOrderId();
         orderData.createdAt = new Date();
         orderData.orderId = orderId;
         orderData.trackingId = trackingId;
         orderData.status = 'pending';
         logTracking(trackingId, 'Order_Created');
         const result = await ordersCollection.insertOne(orderData);
-        res.status(201).send(result);
+        res.status(201).send({ result, orderId, trackingId });
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
       }
@@ -278,6 +281,106 @@ async function run() {
         res.status(200).send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    //  payment way
+    app.post('/create-checkout-session', async (req, res) => {
+      try {
+        const paymentInfo = req.body;
+        const amount = parseInt(paymentInfo.totalPrice) * 100;
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                unit_amount: amount,
+                product_data: {
+                  name: paymentInfo.title,
+                },
+              },
+              quantity: 1,
+            },
+          ],
+
+          customer_email: paymentInfo.email,
+          mode: 'payment',
+
+          metadata: {
+            orderId: paymentInfo.orderId,
+            productId: paymentInfo.productId,
+            trackingId: paymentInfo.trackingId,
+          },
+
+          success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?success=true&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+        });
+
+        res.send({ url: session.url });
+      } catch (error) {
+        res.status(500).send({ message: 'Stripe error', error });
+      }
+    });
+
+    app.patch('/payment-success', async (req, res) => {
+      try {
+        const sessionId = req.query.session_id;
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+        console.log('Session metadata:', session.metadata);
+        const transactionId = session.payment_intent;
+        const existingPayment = await paymentCollection.findOne({
+          transactionId,
+        });
+        if (existingPayment) {
+          return res.send({
+            message: 'Payment already exists',
+            transactionId,
+            trackingId: existingPayment.trackingId,
+          });
+        }
+        const trackingId = session.metadata.trackingId;
+
+        if (session.payment_status === 'paid') {
+          const orderId = session.metadata.orderId;
+
+          const query = { orderId: orderId };
+          const update = {
+            $set: {
+              paymentStatus: 'Paid',
+            },
+          };
+          const updatedOrder = await ordersCollection.updateOne(query, update);
+
+          const paymentDoc = {
+            amount: session.amount_total / 100,
+            currency: session.currency,
+            BuyerEmail: session.customer_email,
+            orderId: session.metadata.orderId,
+            productId: session.metadata.productId,
+            trackingId: trackingId,
+            transactionId: session.payment_intent,
+            paymentStatus: session.payment_status,
+            paidAt: new Date(),
+          };
+
+          const savedPayment = await paymentCollection.insertOne(paymentDoc);
+
+          logTracking(trackingId, 'Order_Paid');
+
+          return res.send({
+            success: true,
+            updatedOrder,
+            transactionId,
+            trackingId,
+            payment: savedPayment,
+          });
+        }
+
+        return res.send({ success: false });
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: 'Payment processing error', error });
       }
     });
 
