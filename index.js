@@ -235,6 +235,43 @@ async function run() {
       }
     });
 
+    app.post('/add-product', async (req, res) => {
+      try {
+        const product = req.body;
+        const result = await productsCollection.insertOne(product);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to add product' });
+      }
+    });
+
+    app.patch('/product/:id', verifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updateInfo = req.body;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: updateInfo,
+        };
+        const result = await productsCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.delete('/product/:id', verifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await productsCollection.deleteOne(query);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // orders releted apis
     app.post('/orders', verifyFBToken, async (req, res) => {
       try {
@@ -306,6 +343,16 @@ async function run() {
 
         res.status(200).send(result);
       } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.get('/orders/pending', verifyFBToken, async (req, res) => {
+      try {
+        const query = { status: 'pending' };
+        const result = await ordersCollection.find(query).toArray();
+        res.status(200).send(result);
+      } catch (err) {
         res.status(500).send({ message: 'Server error' });
       }
     });
