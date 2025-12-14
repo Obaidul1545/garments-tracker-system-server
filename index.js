@@ -209,6 +209,32 @@ async function run() {
       }
     });
 
+    app.get('/products-by-email', verifyFBToken, async (req, res) => {
+      try {
+        const { search } = req.query;
+        const query = {};
+        const email = req.decoded_email;
+
+        if (email) {
+          query.email = email;
+        }
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { category: { $regex: search, $options: 'i' } },
+          ];
+        }
+        const result = await productsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // orders releted apis
     app.post('/orders', verifyFBToken, async (req, res) => {
       try {
