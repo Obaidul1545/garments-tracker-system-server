@@ -3,15 +3,14 @@ const cors = require('cors');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const stripe = require('stripe')(process.env.SRTIPE_SECRET);
-console.log(process.env.SRTIPE_SECRET);
 const app = express();
 const port = process.env.PORT || 3000;
 const admin = require('firebase-admin');
 
-// const serviceAccount = require('./garments-tracker-firebase-adminsdk.json');
+// const serviceAccount = require('./garments-tracker-system-sdk.json');
 
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString(
-  'utf8'
+  'utf-8'
 );
 const serviceAccount = JSON.parse(decoded);
 
@@ -273,7 +272,7 @@ async function run() {
     });
 
     // orders releted apis
-    app.post('/orders', verifyFBToken, async (req, res) => {
+    app.post('/orders', async (req, res) => {
       try {
         const orderData = req.body;
         const trackingId = generateTrackingId();
@@ -316,7 +315,7 @@ async function run() {
       }
     });
 
-    app.get('/orders-by-email', async (req, res) => {
+    app.get('/orders-by-email', verifyFBToken, async (req, res) => {
       try {
         const { email, search, sortByStatus } = req.query;
         const query = {};
@@ -349,15 +348,42 @@ async function run() {
 
     app.get('/orders/pending', verifyFBToken, async (req, res) => {
       try {
-        const query = { status: 'pending' };
-        const result = await ordersCollection.find(query).toArray();
+        const email = req.decoded_email;
+
+        const pendingProducts = await productsCollection
+          .find({ createdByEmail: email })
+          .project({ _id: 1 })
+          .toArray();
+
+        const productId = pendingProducts.map((p) => p._id.toString());
+        const query = {
+          status: 'pending',
+          productId: { $in: productId },
+        };
+        const result = await ordersCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
         res.status(200).send(result);
       } catch (err) {
         res.status(500).send({ message: 'Server error' });
       }
     });
 
-    //  payment way
+    // app.patch('/orders/:id/approve', verifyFBToken, async (req, res) => {
+    //   try {
+    //     const id = req.params.id;
+    //     const result = await ordersCollection.updateOne(
+    //       { _id: new ObjectId(id) },
+    //       { $set: { status: 'Approved', approvedAt: new Date() } }
+    //     );
+    //     res.send(result);
+    //   } catch (err) {
+    //     res.status(500).send({ message: 'Server error' });
+    //   }
+    // });
+
+    //  payment releted api
     app.post('/create-checkout-session', async (req, res) => {
       try {
         const paymentInfo = req.body;

@@ -1,3 +1,4 @@
 node_modules
 .env
 garments-tracker-firebase-adminsdk.json
+garments-tracker-system-sdk.json
