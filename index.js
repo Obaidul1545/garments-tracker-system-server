@@ -176,7 +176,34 @@ async function run() {
           .find(query)
           .sort({ createdAt: -1 })
           .toArray();
+
         res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.get('/all-products/display', async (req, res) => {
+      try {
+        const { search, page = 1, limit = 9 } = req.query;
+        const query = {};
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { category: { $regex: search, $options: 'i' } },
+          ];
+        }
+        const result = await productsCollection
+          .find(query)
+          .skip((page - 1) * limit)
+          .limit(Number(limit))
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const total = await productsCollection.countDocuments(query);
+
+        res.status(200).send({ result, total });
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
       }
@@ -215,7 +242,7 @@ async function run() {
         const email = req.decoded_email;
 
         if (email) {
-          query.email = email;
+          query.createdByEmail = email;
         }
         if (search) {
           query.$or = [
