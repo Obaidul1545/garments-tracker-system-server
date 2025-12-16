@@ -370,18 +370,39 @@ async function run() {
       }
     });
 
-    // app.patch('/orders/:id/approve', verifyFBToken, async (req, res) => {
-    //   try {
-    //     const id = req.params.id;
-    //     const result = await ordersCollection.updateOne(
-    //       { _id: new ObjectId(id) },
-    //       { $set: { status: 'Approved', approvedAt: new Date() } }
-    //     );
-    //     res.send(result);
-    //   } catch (err) {
-    //     res.status(500).send({ message: 'Server error' });
-    //   }
-    // });
+    app.patch('/orders/:id/approved', verifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: 'Approved',
+            approvedAt: new Date(),
+          },
+        };
+        const result = await ordersCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.patch('/orders/:id/reject', verifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: 'Rejected',
+          },
+        };
+        const result = await ordersCollection.updateOne(query, updateDoc);
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
 
     //  payment releted api
     app.post('/create-checkout-session', async (req, res) => {
