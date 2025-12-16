@@ -439,6 +439,32 @@ async function run() {
       }
     });
 
+    // buyer cancel releted api
+    app.patch('/orders/cancel/:id', verifyFBToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const order = await ordersCollection.findOne({ _id: new ObjectId(id) });
+
+        if (order.status !== 'pending') {
+          return res
+            .status(400)
+            .send({ message: 'Only pending orders can be cancelled' });
+        }
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: 'Cancelled',
+            cancelledAt: new Date(),
+          },
+        };
+        const result = await ordersCollection.updateOne(query, updateDoc);
+        await logTracking(order.trackingId, 'Order_Cancelled');
+        res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // tracking releted
     app.post('/add-tracking', verifyFBToken, async (req, res) => {
       try {
