@@ -281,7 +281,7 @@ async function run() {
         orderData.orderId = orderId;
         orderData.trackingId = trackingId;
         orderData.status = 'pending';
-        logTracking(trackingId, 'Order_Created');
+        await logTracking(trackingId, 'Order_Created');
         const result = await ordersCollection.insertOne(orderData);
         res.status(201).send({ result, orderId, trackingId });
       } catch (error) {
@@ -346,6 +346,7 @@ async function run() {
       }
     });
 
+    // pending orders
     app.get('/orders/pending', verifyFBToken, async (req, res) => {
       try {
         const email = req.decoded_email;
@@ -373,6 +374,9 @@ async function run() {
     app.patch('/orders/:id/approved', verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
+        const order = await ordersCollection.findOne({
+          _id: new ObjectId(id),
+        });
         const query = { _id: new ObjectId(id) };
         const updateDoc = {
           $set: {
@@ -380,6 +384,7 @@ async function run() {
             approvedAt: new Date(),
           },
         };
+        await logTracking(order.trackingId, 'Order_Approved');
         const result = await ordersCollection.updateOne(query, updateDoc);
         res.send(result);
       } catch (error) {
@@ -390,14 +395,92 @@ async function run() {
     app.patch('/orders/:id/reject', verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
+        const order = await ordersCollection.findOne({
+          _id: new ObjectId(id),
+        });
         const query = { _id: new ObjectId(id) };
         const updateDoc = {
           $set: {
             status: 'Rejected',
           },
         };
+        await logTracking(order.trackingId, 'Order_Rejected');
+
         const result = await ordersCollection.updateOne(query, updateDoc);
 
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    // appproved orders
+    app.get('/orders/approved', verifyFBToken, async (req, res) => {
+      try {
+        const email = req.decoded_email;
+
+        const approvedProducts = await productsCollection
+          .find({ createdByEmail: email })
+          .project({ _id: 1 })
+          .toArray();
+
+        const productId = approvedProducts.map((p) => p._id.toString());
+        const query = {
+          status: 'Approved',
+          productId: { $in: productId },
+        };
+        const result = await ordersCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.status(200).send(result);
+      } catch (err) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    // tracking releted
+    app.post('/add-tracking', verifyFBToken, async (req, res) => {
+      try {
+        const { trackingId, status, location, note } = req.body;
+
+        const alreadyExists = await trackingsCollection.findOne({
+          trackingId,
+          status,
+        });
+
+        if (alreadyExists) {
+          return res.status(409).send({
+            message: `Tracking status "${status}" already added`,
+          });
+        }
+
+        const log = {
+          trackingId,
+          status,
+          location,
+          note,
+          details: status.split('_').join(' '),
+          createdAt: new Date(),
+        };
+
+        const result = await trackingsCollection.insertOne(log);
+
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    // tracking by trackingId
+    app.get('/tracking/:trackingId', verifyFBToken, async (req, res) => {
+      try {
+        const { trackingId } = req.params;
+        const query = { trackingId };
+        const result = await trackingsCollection
+          .find(query)
+          .sort({ createdAt: 1 })
+          .toArray();
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
@@ -447,7 +530,6 @@ async function run() {
         const sessionId = req.query.session_id;
         const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-        console.log('Session metadata:', session.metadata);
         const transactionId = session.payment_intent;
         const existingPayment = await paymentCollection.findOne({
           transactionId,
