@@ -298,6 +298,19 @@ async function run() {
       }
     });
 
+    app.patch('/products/:id/show-on-home', verifyFBToken, async (req, res) => {
+      const { id } = req.params;
+      const { showOnHome } = req.body;
+
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: { showOnHome },
+      };
+
+      const result = await productsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
     // orders releted apis
     app.post('/orders', async (req, res) => {
       try {
