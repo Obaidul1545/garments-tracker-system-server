@@ -343,13 +343,24 @@ async function run() {
           ];
         }
         if (sortByStatus && sortByStatus !== 'all') {
-          query.sortByStatus = sortByStatus;
+          query.status = sortByStatus;
         }
         const result = await ordersCollection
           .find(query)
           .sort({ createdAt: -1 })
           .toArray();
         res.status(200).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
+    app.get('/order/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        const query = { _id: new ObjectId(id) };
+        const result = await ordersCollection.findOne(query);
+        res.send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
       }
