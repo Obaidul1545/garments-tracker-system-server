@@ -7,8 +7,6 @@ const app = express();
 const port = process.env.PORT || 3000;
 const admin = require('firebase-admin');
 
-// const serviceAccount = require('./garments-tracker-system-sdk.json');
-
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString(
   'utf-8'
 );
@@ -54,7 +52,7 @@ const client = new MongoClient(uri, {
 });
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db('garments_tracker_db');
     const usersCollection = db.collection('users');
@@ -664,10 +662,10 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 });
-    console.log(
-      'Pinged your deployment. You successfully connected to MongoDB!'
-    );
+    // await client.db('admin').command({ ping: 1 });
+    // console.log(
+    //   'Pinged your deployment. You successfully connected to MongoDB!'
+    // );
   } finally {
     // await client.close();
   }
