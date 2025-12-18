@@ -133,6 +133,18 @@ async function run() {
       }
     });
 
+    app.get('/users/manager-count', verifyFBToken, async (req, res) => {
+      try {
+        const result = await usersCollection.countDocuments({
+          role: 'manager',
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to get manager count' });
+      }
+    });
+
     app.get('/users/:email/role', async (req, res) => {
       const email = req.params.email;
       const query = { email };
@@ -656,7 +668,6 @@ async function run() {
 
         return res.send({ success: false });
       } catch (error) {
-        console.log(error);
         res.status(500).send({ message: 'Payment processing error', error });
       }
     });
