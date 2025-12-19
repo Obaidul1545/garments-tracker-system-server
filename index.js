@@ -487,7 +487,9 @@ async function run() {
 
         const productId = approvedProducts.map((p) => p._id.toString());
         const query = {
-          status: 'Approved',
+          status: {
+            $nin: ['Cancelled', 'pending'],
+          },
           productId: { $in: productId },
         };
         const result = await ordersCollection
@@ -551,12 +553,27 @@ async function run() {
           createdAt: new Date(),
         };
 
-        const result = await trackingsCollection.insertOne(log);
+        if (status && trackingId) {
+          await ordersCollection.updateOne(
+            { trackingId: trackingId },
+            {
+              $set: {
+                status: status,
+                updatedAt: new Date(),
+              },
+            }
+          );
+        }
 
+        const result = await trackingsCollection.insertOne(log);
         res.status(201).send(result);
       } catch (error) {
         res.status(500).send({ message: 'Server error' });
       }
+    });
+
+    app.patch('/order/status-update', verifyFBToken, async (req, res) => {
+      const status = req.body;
     });
 
     // tracking by trackingId
